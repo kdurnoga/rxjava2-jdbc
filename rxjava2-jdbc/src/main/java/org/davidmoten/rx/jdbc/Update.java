@@ -164,6 +164,11 @@ final class Update {
 
     private static <T> Flowable<T> create(NamedPreparedStatement ps, List<Object> parameters,
             Function<? super ResultSet, T> mapper) {
+    	try {
+    		Util.incrementCounter(ps.ps.getConnection());
+    	} catch (SQLException e) {
+    		throw new RuntimeException(e);
+    	}
         Callable<ResultSet> initialState = () -> {
             Util.convertAndSetParameters(ps.ps, parameters, ps.names);
             ps.ps.execute();
