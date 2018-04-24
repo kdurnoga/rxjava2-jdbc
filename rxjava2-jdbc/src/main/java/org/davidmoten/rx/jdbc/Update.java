@@ -154,6 +154,7 @@ final class Update {
             Function<? super ResultSet, T> mapper, boolean eagerDispose) {
         Callable<NamedPreparedStatement> resourceFactory = () -> Util
                 .prepareReturnGeneratedKeys(con, sql);
+    	Util.incrementCounter(con);
         Function<NamedPreparedStatement, Flowable<T>> obsFactory = ps -> parameterGroups
                 .flatMap(parameters -> create(ps, parameters, mapper), true, 1) //
                 .doOnComplete(() -> Util.commit(ps.ps)) //
@@ -164,11 +165,6 @@ final class Update {
 
     private static <T> Flowable<T> create(NamedPreparedStatement ps, List<Object> parameters,
             Function<? super ResultSet, T> mapper) {
-    	try {
-    		Util.incrementCounter(ps.ps.getConnection());
-    	} catch (SQLException e) {
-    		throw new RuntimeException(e);
-    	}
         Callable<ResultSet> initialState = () -> {
             Util.convertAndSetParameters(ps.ps, parameters, ps.names);
             ps.ps.execute();
