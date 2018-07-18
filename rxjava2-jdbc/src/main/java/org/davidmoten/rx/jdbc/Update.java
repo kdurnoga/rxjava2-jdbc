@@ -41,6 +41,7 @@ final class Update {
         log.debug("Update.create {}", sql);
         Callable<NamedPreparedStatement> resourceFactory = () -> Util.prepare(con, sql);
         final Function<NamedPreparedStatement, Flowable<Notification<Integer>>> flowableFactory;
+        Util.incrementCounter(con);
         if (batchSize == 0) {
             flowableFactory = ps -> parameterGroups //
                     .flatMap(parameters -> create(ps, Util.toParameters(parameters), sql)
@@ -57,7 +58,6 @@ final class Update {
                             if (Util.hasCollection(params)) {
                                 return create(ps, params, sql).toFlowable();
                             } else {
-                                Util.incrementCounter(ps.ps.getConnection());
                                 count[0] += 1;
                                 Flowable<Integer> result;
                                 if (count[0] == batchSize) {

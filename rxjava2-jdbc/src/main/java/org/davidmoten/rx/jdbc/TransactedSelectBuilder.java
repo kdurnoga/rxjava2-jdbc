@@ -100,6 +100,7 @@ public final class TransactedSelectBuilder implements DependsOn<TransactedSelect
             AtomicReference<Connection> connection = new AtomicReference<Connection>();
             Single<Connection> con = sb.connection //
                     .map(c -> Util.toTransactedConnection(connection, c));
+            TxImpl<?>[] t = new TxImpl[1];
             return Select.create(con, //
                     sb.parameterGroupsToFlowable(), //
                     sb.sql, //
@@ -109,9 +110,14 @@ public final class TransactedSelectBuilder implements DependsOn<TransactedSelect
                     .materialize() //
                     .flatMap(n -> Tx.toTx(n, connection.get(), db)) //
                     .doOnNext(tx -> {
+                        t[0] = ((TxImpl<Integer>) tx);
+                    }) //
+                    .doOnComplete(() -> {
+                        TxImpl<?> tx = t[0];
                         if (tx.isComplete()) {
-                            ((TxImpl<T>) tx).connection().commit();
+                            tx.connection().commit();
                         }
+                        Util.closeSilently(tx.connection());
                     });
         });
     }

@@ -44,8 +44,7 @@ public final class TransactedReturnGeneratedKeysBuilder implements GetterTx {
 					.doOnComplete(() -> {
 						TxImpl<?> tx = t[0];
 						if (tx.isComplete()) {
-							tx.connection()
-									.commit();
+							tx.connection().commit();
 						}
 						Util.closeSilently(tx.connection());
 					});
