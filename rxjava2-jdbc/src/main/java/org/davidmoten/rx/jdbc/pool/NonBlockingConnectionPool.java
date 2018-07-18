@@ -1,6 +1,8 @@
 package org.davidmoten.rx.jdbc.pool;
 
 import java.sql.Connection;
+import java.util.Optional;
+import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -13,6 +15,7 @@ import org.davidmoten.rx.jdbc.ConnectionProvider;
 import org.davidmoten.rx.jdbc.Util;
 import org.davidmoten.rx.jdbc.pool.internal.HealthCheckPredicate;
 import org.davidmoten.rx.jdbc.pool.internal.PooledConnection;
+import org.davidmoten.rx.jdbc.pool.internal.SerializedConnectionListener;
 import org.davidmoten.rx.pool.Member;
 import org.davidmoten.rx.pool.NonBlockingPool;
 import org.davidmoten.rx.pool.Pool;
@@ -24,6 +27,7 @@ import io.reactivex.Single;
 import io.reactivex.functions.Consumer;
 import io.reactivex.functions.Predicate;
 import io.reactivex.internal.schedulers.ExecutorScheduler;
+import io.reactivex.plugins.RxJavaPlugins;
 import io.reactivex.schedulers.Schedulers;
 
 public final class NonBlockingConnectionPool implements Pool<Connection> {
@@ -45,10 +49,13 @@ public final class NonBlockingConnectionPool implements Pool<Connection> {
         private int maxPoolSize = 5;
         private long idleTimeBeforeHealthCheckMs = 60000;
         private long maxIdleTimeMs = 30 * 60000;
-        private long createRetryIntervalMs = 30000;
+        private long connectionRetryIntervalMs = 30000;
         private Consumer<? super Connection> disposer = Util::closeSilently;
         private Scheduler scheduler = null;
+        private Properties properties = new Properties();
         private final Function<NonBlockingConnectionPool, T> transform;
+        private String url;
+        private Consumer<? super Optional<Throwable>> c;
 
         public Builder(Function<NonBlockingConnectionPool, T> transform) {
             this.transform = transform;
@@ -85,7 +92,38 @@ public final class NonBlockingConnectionPool implements Pool<Connection> {
          * @return this
          */
         public Builder<T> url(String url) {
-            return connectionProvider(Util.connectionProvider(url));
+            this.url = url;
+            return this;
+        }
+
+        /**
+         * Sets the JDBC properties that will be passed to
+         * {@link java.sql.DriverManager#getConnection}. The properties will only be
+         * used if the {@code url} has been set in the builder.
+         * 
+         * @param properties
+         *            the jdbc properties
+         * @return this
+         */
+        public Builder<T> properties(Properties properties) {
+            this.properties = properties;
+            return this;
+        }
+
+        /**
+         * Adds the given property specified by key and value to the JDBC properties
+         * that will be passed to {@link java.sql.DriverManager#getConnection}. The
+         * properties will only be used if the {@code url} has been set in the builder.
+         * 
+         * @param key
+         *            property key
+         * @param value
+         *            property value
+         * @return this
+         */
+        public Builder<T> property(Object key, Object value) {
+            this.properties.put(key, value);
+            return this;
         }
 
         /**
@@ -133,8 +171,8 @@ public final class NonBlockingConnectionPool implements Pool<Connection> {
          *            time unit
          * @return this
          */
-        public Builder<T> createRetryInterval(long duration, TimeUnit unit) {
-            this.createRetryIntervalMs = unit.toMillis(duration);
+        public Builder<T> connectionRetryInterval(long duration, TimeUnit unit) {
+            this.connectionRetryIntervalMs = unit.toMillis(duration);
             return this;
         }
 
@@ -184,6 +222,22 @@ public final class NonBlockingConnectionPool implements Pool<Connection> {
         }
 
         /**
+         * Sets a listener for connection success and failure. Success and failure
+         * events are reported serially to the listener. If the consumer throws it will
+         * be reported to {@code RxJavaPlugins.onError}. This consumer should not block
+         * otherwise it will block the connection pool itself.
+         * 
+         * @param c
+         *            listener for connection events
+         * @return this
+         */
+        public Builder<T> connectionListener(Consumer<? super Optional<Throwable>> c) {
+            Preconditions.checkArgument(c != null, "listener can only be set once");
+            this.c = c;
+            return this;
+        }
+
+        /**
          * Sets the maximum connection pool size. Default is 5.
          * 
          * @param maxPoolSize
@@ -225,12 +279,42 @@ public final class NonBlockingConnectionPool implements Pool<Connection> {
                 ExecutorService executor = Executors.newFixedThreadPool(maxPoolSize);
                 scheduler = new ExecutorScheduler(executor);
             }
+            if (url != null) {
+                cp = Util.connectionProvider(url, properties);
+            }
+            Consumer<Optional<Throwable>> listener;
+            if (c == null) {
+                listener = null;
+            } else {
+                listener = new SerializedConnectionListener(c);
+            }
             NonBlockingConnectionPool p = new NonBlockingConnectionPool(NonBlockingPool //
-                    .factory(() -> cp.get()) //
+                    .factory(() -> {
+                        try {
+                            Connection con = cp.get();
+                            if (listener != null) {
+                                try {
+                                    listener.accept(Optional.empty());
+                                } catch (Throwable e) {
+                                    RxJavaPlugins.onError(e);
+                                }
+                            }
+                            return con;
+                        } catch (Throwable e) {
+                            if (listener != null) {
+                                try {
+                                    listener.accept(Optional.of(e));
+                                } catch (Throwable e2) {
+                                    RxJavaPlugins.onError(e2);
+                                }
+                            }
+                            throw e;
+                        }
+                    }) //
                     .checkinDecorator((con, checkin) -> new PooledConnection(con, checkin)) //
                     .idleTimeBeforeHealthCheck(idleTimeBeforeHealthCheckMs, TimeUnit.MILLISECONDS) //
                     .maxIdleTime(maxIdleTimeMs, TimeUnit.MILLISECONDS) //
-                    .createRetryInterval(createRetryIntervalMs, TimeUnit.MILLISECONDS) //
+                    .createRetryInterval(connectionRetryIntervalMs, TimeUnit.MILLISECONDS) //
                     .scheduler(scheduler) //
                     .disposer(disposer)//
                     .healthCheck(healthCheck) //
