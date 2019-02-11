@@ -82,14 +82,30 @@ final class TransactedConnection implements Connection {
         }
     }
 
-    @Override
-    public void rollback() throws SQLException {
-        log.debug("TransactedConnection rollback attempt, counter={}", counter.get());
-        if (counter.decrementAndGet() == 0) {
-            log.debug("TransactedConnection actual rollback");
-            con.rollback();
-        }
-    }
+	public void forceCommit() throws SQLException {
+		log.debug("TransactedConnection force commit");
+		if (counter.get() != 0) {
+			counter.set(0);
+			con.commit();
+		}
+	}
+	
+	@Override
+	public void rollback() throws SQLException {
+		log.debug("TransactedConnection rollback attempt, counter={}", counter.get());
+		if (counter.decrementAndGet() == 0) {
+			log.debug("TransactedConnection actual rollback");
+			con.rollback();
+		}
+	}
+
+	public void forceRollback() throws SQLException {
+		log.debug("TransactedConnection force rollback");
+		if (counter.get() != 0) {
+			counter.set(0);
+			con.rollback();
+		}
+	}
 
     @Override
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {

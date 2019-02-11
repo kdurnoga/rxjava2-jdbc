@@ -1,6 +1,7 @@
 package org.davidmoten.rx.jdbc;
 
 import java.sql.Connection;
+import java.sql.SQLException;
 
 final class TxImpl<T> implements Tx<T> {
 
@@ -40,6 +41,20 @@ final class TxImpl<T> implements Tx<T> {
     @Override
     public T value() {
         return value;
+    }
+    
+    @Override
+    public void commit() throws SQLException {
+    	if (!con.isClosed()) {
+    		con.forceCommit();
+    	}
+    }
+    
+    @Override
+    public void rollback() throws SQLException {
+    	if (!con.isClosed()) {
+    		con.forceRollback();
+    	}    	
     }
 
     @Override
