@@ -34,7 +34,9 @@ public final class Sql {
         try {
             String s = bytes.toString(UTF8);
             //trim comment lines starting with --
-            s = Arrays.stream(s.split("\n")).filter(line -> !line.startsWith("--")).collect(Collectors.joining("\n"));
+            s = s.lines().filter(line -> !line.startsWith("--"))
+                 .map(String::strip)
+                 .collect(Collectors.joining());
             String[] statements = s.split(delimiter);
             return Arrays.asList(statements);
         } catch (UnsupportedEncodingException e) {

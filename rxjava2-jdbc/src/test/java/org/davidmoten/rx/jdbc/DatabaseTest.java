@@ -73,6 +73,7 @@ import org.davidmoten.rx.jdbc.tuple.Tuple7;
 import org.davidmoten.rx.jdbc.tuple.TupleN;
 import org.davidmoten.rx.pool.PoolClosedException;
 import org.h2.jdbc.JdbcSQLException;
+import org.h2.jdbc.JdbcSQLSyntaxErrorException;
 import org.hsqldb.jdbc.JDBCBlobFile;
 import org.hsqldb.jdbc.JDBCClobFile;
 import org.junit.Assert;
@@ -1106,7 +1107,7 @@ public class DatabaseTest {
                 .count() //
                 .test() //
                 .awaitDone(TIMEOUT_SECONDS, TimeUnit.SECONDS) //
-                .assertError(JdbcSQLException.class);
+                .assertError(JdbcSQLSyntaxErrorException.class);
     }
 
     @Test
@@ -2291,7 +2292,7 @@ public class DatabaseTest {
                     .firstOrError() //
                     .test() //
                     .awaitDone(TIMEOUT_SECONDS, TimeUnit.SECONDS) //
-                    .assertValue(1234L) //
+                    .assertValue(t.getTime()) //
                     .assertComplete();
         }
     }

@@ -1,5 +1,23 @@
 package org.davidmoten.rx.jdbc;
 
+import com.github.davidmoten.guavamini.Preconditions;
+import io.reactivex.Completable;
+import io.reactivex.Flowable;
+import io.reactivex.Single;
+import io.reactivex.functions.Action;
+import io.reactivex.functions.Consumer;
+import io.reactivex.functions.Function;
+import org.davidmoten.rx.internal.FlowableSingleDeferUntilRequest;
+import org.davidmoten.rx.jdbc.exceptions.SQLRuntimeException;
+import org.davidmoten.rx.jdbc.pool.NonBlockingConnectionPool;
+import org.davidmoten.rx.jdbc.pool.Pools;
+import org.davidmoten.rx.jdbc.pool.internal.ConnectionProviderBlockingPool;
+import org.davidmoten.rx.pool.Member;
+import org.davidmoten.rx.pool.Pool;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -9,27 +27,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.sql.DataSource;
-
-import org.davidmoten.rx.internal.FlowableSingleDeferUntilRequest;
-import org.davidmoten.rx.jdbc.exceptions.SQLRuntimeException;
-import org.davidmoten.rx.jdbc.pool.NonBlockingConnectionPool;
-import org.davidmoten.rx.jdbc.pool.Pools;
-import org.davidmoten.rx.jdbc.pool.internal.ConnectionProviderBlockingPool;
-import org.davidmoten.rx.pool.Member;
-import org.davidmoten.rx.pool.Pool;
-
-import com.github.davidmoten.guavamini.Preconditions;
-
-import io.reactivex.Completable;
-import io.reactivex.Flowable;
-import io.reactivex.Single;
-import io.reactivex.functions.Action;
-import io.reactivex.functions.Consumer;
-import io.reactivex.functions.Function;
 
 public final class Database implements AutoCloseable {
 
